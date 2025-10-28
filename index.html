@@ -348,6 +348,16 @@ table tbody tr:hover {
     <div id="current-filter-display" class="mb-6 text-lg font-semibold text-center py-2 rounded-lg bg-gray-700">
         Current Filter: <span id="current-invoice-no" class="text-yellow-400">All Data</span>
     </div>
+     
+    <!-- 🆕 Home Invoice Select Dropdown -->
+<div class="mb-4 text-center">
+  <label class="muted block mb-1 text-gray-300">Select Invoice</label>
+  <select id="home-inv-select" class="p-2 border rounded w-64 text-black" onchange="updateHomeDashboard(this.value)">
+    <option value="">-- Select Invoice --</option>
+  </select>
+</div>
+   
+
 
     <div id="home-summary" class="mt-4">
       <h2 class="text-xl font-bold mb-4">Invoice-wise Expense & Profit</h2>
@@ -1031,6 +1041,7 @@ function renderAll() {
   renderInvoiceProfits();
   renderExpensesChart();
  renderMaterialsDropdown();
+ populateHomeInvoices(); // ✅ Home invoice dropdown refresh
 
 
 // --- Labor ---
@@ -1051,14 +1062,18 @@ function renderAll() {
  * 🛠️ UTILITY & UI HELPERS
  * ------------------------------------------------------------- */
 
-function show(id){ 
-  document.querySelectorAll('.card').forEach(c=>c.style.display='none'); 
-  document.getElementById(id).style.display='block'; 
-  window.scrollTo({top:0,behavior:'smooth'}); 
+function show(id) {
+  // Hide all tab-content sections (including home, estimate, etc.)
+  document.querySelectorAll('.tab-content, .card').forEach(c => c.style.display = 'none');
 
-  
-  
+  // Show only the selected section
+  const elToShow = document.getElementById(id);
+  if (elToShow) elToShow.style.display = 'block';
+
+  // Scroll to top for better UX
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
 
 
 function el(id){ return document.getElementById(id); }
@@ -3983,7 +3998,12 @@ function addLabor(pref){
   div.className='p-3 border rounded bg-gray-50';
 
   div.innerHTML = `
-    <div class="grid md:grid-cols-4 gap-2">
+    <div class="grid md:grid-cols-5 gap-2">
+      <!-- 🆕 Invoice No Field Added -->
+      <select class="lab-inv p-2 border rounded" onchange="handleLaborInvoiceSelectRow(this)">
+        <option value="">-- Select Invoice --</option>
+      </select>
+
       <input class="lab-client p-2 border rounded" placeholder="Client Name">
       <input class="lab-work p-2 border rounded" placeholder="Work Title">
       <input class="lab-name p-2 border rounded" placeholder="Labor Name">
@@ -3996,6 +4016,7 @@ function addLabor(pref){
         <button type="button" class="smallbtn" onclick="removeCategory()">-</button>
       </div>
     </div>
+
 
     <div class="grid md:grid-cols-4 gap-2 mt-2">
       <input class="lab-rate p-2 border rounded" type="number" placeholder="Per day rate">
@@ -4126,11 +4147,21 @@ function addLabor(pref){
   }
 
   refreshCategoryOptions(div.querySelector('.lab-category'));
+    populateLaborInvoiceDropdown(div.querySelector('.lab-inv'));
+
 }
 
-/* ---------- Save Labor ---------- */
+
 function saveLabor(btn){
   const div = btn.closest('.p-3'); 
+
+  // 🆕 Ensure invoice dropdown is populated before reading value
+  const invSel = div.querySelector('.lab-inv');
+  if (invSel && !invSel.options.length) {
+    populateLaborInvoiceDropdown(invSel);
+  }
+
+  const invno  = invSel?.value || '';   // Invoice No field
   const client = div.querySelector('.lab-client').value || 'Unknown';
   const work   = div.querySelector('.lab-work').value || '';
   const name   = div.querySelector('.lab-name').value || 'Unknown';
@@ -4160,11 +4191,11 @@ function saveLabor(btn){
   let id;
   if(existingIndex !== -1){
     id = DATA.labor[existingIndex].id;
-    DATA.labor[existingIndex] = { id, client, work, name, category, rate, range, start, end, days, totalDays, totalAdvance, totalTransport, totalPay, balance };
+    DATA.labor[existingIndex] = { id, invno, client, work, name, category, rate, range, start, end, days, totalDays, totalAdvance, totalTransport, totalPay, balance };
   } else {
     DATA.counters.lab++; 
     id = 'LAB-' + String(DATA.counters.lab).padStart(4,'0');
-    DATA.labor.push({ id, client, work, name, category, rate, range, start, end, days, totalDays, totalAdvance, totalTransport, totalPay, balance });
+    DATA.labor.push({ id, invno, client, work, name, category, rate, range, start, end, days, totalDays, totalAdvance, totalTransport, totalPay, balance });
   }
 
   saveData(); 
@@ -4172,6 +4203,7 @@ function saveLabor(btn){
   updateLaborTotals(div);
   resetLaborIds(); // numbering reset
 }
+
 
 /* ---------- Reset numbering after delete ---------- */
 function resetLaborIds(){
@@ -4253,7 +4285,45 @@ function deleteLabor(id){
   if(typeof renderLaborList === 'function') renderLaborList();
 }
 
-function loadLabor(id){ const r = DATA.labor.find(x=> x.id === id); if(!r) return; addLabor(r); show('labor'); }
+
+function loadLabor(id){
+  const r = DATA.labor.find(x=> x.id === id);
+  if(!r) return;
+  addLabor(r);
+  show('labor');
+
+  // 🆕 Invoice No auto-select patch (guaranteed timing)
+  setTimeout(() => {
+    const lastRow = document.querySelector('#labor-rows .p-3:last-child');
+    if (lastRow) {
+
+      // Invoice auto-select
+      const invSel = lastRow.querySelector('.lab-inv');
+      if (invSel) {
+        populateLaborInvoiceDropdown(invSel);
+        setTimeout(() => {
+          invSel.value = r.invno || '';
+        }, 100);
+      }
+
+      // 🆕 Category auto-select (ensure dropdown refreshed)
+      const catSel = lastRow.querySelector('.lab-category');
+      if (catSel) {
+        refreshCategoryOptions(catSel);
+        setTimeout(() => {
+          catSel.value = r.category || '';
+        }, 100);
+      }
+
+    }
+  }, 300);
+}
+
+
+
+
+
+
 function deleteLabor(id){ if(!confirm('Delete?')) return; DATA.labor = DATA.labor.filter(x=> x.id !== id); saveData(); }
 function shareLabor(id){
   // --- COMPANY INFO ---
@@ -4303,6 +4373,75 @@ function shareLabor(id){
 }
 
 
+
+/* ---------- Populate Invoice Dropdown in Each Labor Row ---------- */
+function populateLaborInvoiceDropdown(selectEl) {
+  if (!selectEl) return;
+  selectEl.innerHTML = `<option value="">-- Select Invoice --</option>`;
+  (DATA.invoices || []).forEach(inv => {
+    const opt = document.createElement("option");
+    opt.value = inv.id;
+    opt.textContent = `${inv.id} - ${inv.client}`;
+    selectEl.appendChild(opt);
+  });
+}
+
+/* ---------- Handle Invoice Selection (Auto-fill Client & Work) ---------- */
+function handleLaborInvoiceSelectRow(sel) {
+  const div = sel.closest('.p-3');
+  const inv = DATA.invoices.find(x => x.id === sel.value);
+  if (!inv) return;
+  div.querySelector('.lab-client').value = inv.client || '';
+  div.querySelector('.lab-work').value = inv.work || '';
+}
+
+
+
+/* ---------- Export / Report (Name wise All Report) ---------- */
+function exportLaborReport() {
+  const searchInput = el('labor-search');  // Search field (Labor Name)
+  const q = (searchInput?.value || '').trim().toLowerCase();
+
+  let reportList = [];
+  let title = '';
+
+  // ✅ फक्त Name दिलंय → त्या नावाचे सर्व invoices report मध्ये येतील
+  if (q) {
+    reportList = DATA.labor.filter(x => x.name.toLowerCase().includes(q));
+    title = `Full Report for Labor: ${searchInput.value}`;
+  }
+  // 🔸 जर काहीच टाकलं नसेल → full report (backup)
+  else {
+    reportList = DATA.labor;
+    title = 'All Labor Attendance Report';
+  }
+
+  if (!reportList.length) {
+    alert('No records found for this labor name.');
+    return;
+  }
+
+  // --- Generate report text ---
+  let text = `📋 ${title}\n\n`;
+  reportList.forEach(r => {
+    text += `🧾 ${r.id}\n`;
+    if (r.invno) text += `Invoice: ${r.invno}\n`;
+    text += `Client: ${r.client}\nWork: ${r.work}\nName: ${r.name}\nRate: ₹${r.rate}\n`;
+    text += `Start: ${r.start} | End: ${r.end}\n`;
+    text += `Days: ${r.totalDays} | Adv: ₹${r.totalAdvance} | Transport: ₹${r.totalTransport}\n`;
+    text += `Balance: ₹${r.balance}\n`;
+    text += `---------------------------------\n`;
+  });
+
+  // --- Share / Export via WhatsApp ---
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+
+
+
+
+
 /* -------------------------------------------------------------
  * 🏁 INITIALIZATION & EXPORT/IMPORT
  * ------------------------------------------------------------- */
@@ -4345,6 +4484,13 @@ document.getElementById("order-invoice-select").addEventListener("change", funct
     el("ord-client").value = inv.client || "";
     el("ord-work").value = inv.work || "";
   }
+});
+
+
+// 🏠 App open zalyavar Home tab auto-show kara
+document.addEventListener("DOMContentLoaded", () => {
+  renderAll?.();   // renderAll() function असेल तर चालेल
+  show("home");    // Home tab default open होईल
 });
 
 
@@ -4600,6 +4746,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+
+/* ---------- Populate Home Invoice Dropdown ---------- */
+function populateHomeInvoices() {
+  const sel = document.getElementById("home-inv-select");
+  if (!sel) return;
+  sel.innerHTML = `<option value="">-- Select Invoice --</option>`;
+  (DATA.invoices || []).forEach(inv => {
+    const opt = document.createElement("option");
+    opt.value = inv.id;
+    opt.textContent = `${inv.id} - ${inv.client}`;
+    sel.appendChild(opt);
+  });
+}
+
+
 
 
 
