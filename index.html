@@ -1234,9 +1234,8 @@ function addItem(prefix, data = {}) {
     const row = document.createElement('div');
     row.className = "item-row border rounded p-3 flex flex-col gap-2 bg-white";
 
-    const qty = data.quantity || data.qty || '';   // ✅ आता blank राहील
-    const rate = data.rate || '';                  // ✅ आता blank राहील
-
+    const qty = Number(data.quantity || data.qty || 0);
+    const rate = Number(data.rate || 0);
     const amount = qty * rate;
 
     row.innerHTML = `
@@ -2241,9 +2240,9 @@ function addExpenseRow(data = {}) {
 </td>
 
 
-        <td data-label="Qty"><input type="number" class="exp-qty w-full" placeholder="Qty" value="${data.quantity || ''}" oninput="calculateExpenseAmount(this)"></td>
-        <td data-label="Unit"><input type="text" class="exp-unit w-full" placeholder="Unit" value="${data.unit || ''}"></td>
-        <td data-label="Rate"><input type="number" class="exp-rate w-full" placeholder="Rate" value="${data.rate || ''}" oninput="calculateExpenseAmount(this)"></td>
+        <td data-label="Qty"><input type="number" class="exp-qty w-full" placeholder="Qty" value="${data.quantity || 1}" oninput="calculateExpenseAmount(this)"></td>
+        <td data-label="Unit"><input type="text" class="exp-unit w-full" placeholder="Unit" value="${data.unit || 'pc'}"></td>
+        <td data-label="Rate"><input type="number" class="exp-rate w-full" placeholder="Rate" value="${data.rate || 0}" oninput="calculateExpenseAmount(this)"></td>
         <td data-label="Amount"><input type="number" class="exp-amount w-full" placeholder="Amount" value="${data.amount || 0}" disabled></td>
         <td data-label="Action"><button class="smallbtn bg-red-500" onclick="this.closest('.expense-row').remove()">✕</button></td>
     `;
@@ -2897,39 +2896,32 @@ let selectedOrderId = null;
 function addOrderRow(data = {}) {
   const parent = el('order-items');
   const row = document.createElement('div');
-  row.className = 'order-row border-b py-2'; // 1️⃣ grid काढलं — दोन ओळी करणार आहोत
+  row.className = 'order-row grid grid-cols-7 gap-2 border-b py-2'; // वाढवलेले grid-cols 7
 
   const part = data.part || '';
   const category = data.category || '';
-  const qty = data.qty || '';
+  const qty = data.qty || 0;
   const unit = data.unit || '';
-  const rate = data.rate || '';
+  const rate = data.rate || 0;
   const amount = (qty * rate).toFixed(2);
 
-  // 2️⃣ दोन ओळींची रचना
   row.innerHTML = `
-    <!-- 🔹 Line 1: Particular + Category -->
-    <div class="grid grid-cols-2 gap-2 mb-2">
-      <input list="materials" class="ord-part w-full p-2 border rounded" placeholder="Particular" value="${part}">
-      <select class="ord-category p-2 border rounded">
-        <option value="">Select Category</option>
-        ${(DATA.categories || []).map(c => 
-          `<option value="${c}" ${c === category ? 'selected' : ''}>${c}</option>`
-        ).join('')}
-      </select>
-    </div>
-
-    <!-- 🔹 Line 2: Qty + Unit + Rate + Amount + Remove -->
-    <div class="grid grid-cols-5 gap-2">
-      <input type="number" class="ord-qty p-2 border rounded" placeholder="Qty" value="${qty}">
-      <input class="ord-unit p-2 border rounded" placeholder="Unit" value="${unit}">
-      <input type="number" class="ord-rate p-2 border rounded" placeholder="Rate" value="${rate}">
-      <span class="ord-amt flex items-center justify-end font-semibold pr-2">₹${amount}</span>
+    <input list="materials" class="ord-part w-full p-2 border rounded col-span-2" placeholder="Particular" value="${part}">
+    <select class="ord-category p-2 border rounded col-span-1">
+      <option value="">Select Cat</option>
+      ${(DATA.categories || []).map(c => 
+        `<option value="${c}" ${c === category ? 'selected' : ''}>${c}</option>`
+      ).join('')}
+    </select>
+    <input type="number" class="ord-qty p-2 border rounded col-span-1" placeholder="Qty" value="${qty}">
+    <input class="ord-unit p-2 border rounded col-span-1" placeholder="Unit" value="${unit}">
+    <input type="number" class="ord-rate p-2 border rounded col-span-1" placeholder="Rate" value="${rate}">
+    <div class="flex items-center justify-between col-span-1">
+      <span class="ord-amt font-semibold text-right pr-2">${amount}</span>
       <button class="smallbtn bg-red-500 text-white" onclick="this.closest('.order-row').remove()">✕</button>
     </div>
   `;
 
-  // 3️⃣ गणना तशीच ठेवली
   const qtyInput = row.querySelector('.ord-qty');
   const rateInput = row.querySelector('.ord-rate');
   const amtSpan = row.querySelector('.ord-amt');
@@ -2937,7 +2929,7 @@ function addOrderRow(data = {}) {
   function calcAmount() {
     const q = parseFloat(qtyInput.value) || 0;
     const r = parseFloat(rateInput.value) || 0;
-    amtSpan.textContent = '₹' + (q * r).toFixed(2);
+    amtSpan.textContent = (q * r).toFixed(2);
   }
 
   qtyInput.addEventListener('input', calcAmount);
@@ -2945,7 +2937,6 @@ function addOrderRow(data = {}) {
 
   parent.appendChild(row);
 }
-
 
 
 // ✅ SAVE function (Category per item save होईल)
