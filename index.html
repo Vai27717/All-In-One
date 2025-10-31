@@ -569,15 +569,10 @@ table tbody tr:hover {
   </div>
 
   <div id="meas-items" class="space-y-2"></div>
-  
-  
-
 
   <div class="mt-2 flex items-center gap-2">
     <button class="smallbtn" onclick="addMeasurement()">+ Add Measurement</button>
     <button class="smallbtn" onclick="saveMeasurements()">Save</button>
-    <button onclick="startMeasureWithCamera()">📷 Measure with Camera</button>
-
     <button onclick="toggleSection('saved-meas', this)" class="smallbtn mt-4">
   ➕ Show Saved Measurements
     
@@ -587,16 +582,6 @@ table tbody tr:hover {
   <div id="saved-meas" class="mt-2 hidden"></div>
   <input type="hidden" id="msr-id">
   
-<!-- 📷 CAMERA UI -->
-<div id="camera-box" style="display:none;">
-  <video id="cameraView" autoplay playsinline style="width:100%;height:auto;border-radius:12px;"></video>
-  <canvas id="measureCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;"></canvas>
-  <div class="text-center mt-2">
-    <button onclick="stopCamera()" class="bg-red-500 text-white p-2 rounded">Stop</button>
-  </div>
-</div>
-
-
 </div>
 
 
@@ -2900,94 +2885,6 @@ function shareMeasurement(id) {
     alert("Copied to clipboard ✅");
   }
 }
-
-
-
-
-
-let measurePoints = [];
-let cameraStream = null;
-
-/* ---------- Start Camera & Measure ---------- */
-async function startMeasureWithCamera() {
-  const video = document.getElementById('cameraView');
-  const box = document.getElementById('camera-box');
-  const canvas = document.getElementById('measureCanvas');
-  const ctx = canvas.getContext('2d');
-  box.style.display = 'block';
-  measurePoints = [];
-
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    video.srcObject = cameraStream;
-    alert("Camera started ✅ — Tap two points on the screen to measure.");
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    canvas.onclick = (e) => {
-      measurePoints.push({x: e.clientX, y: e.clientY});
-      if (measurePoints.length === 2) {
-        const dx = measurePoints[1].x - measurePoints[0].x;
-        const dy = measurePoints[1].y - measurePoints[0].y;
-        const pixelDistance = Math.sqrt(dx*dx + dy*dy);
-
-        // 📏 Approx conversion (depends on phone DPI)
-        const cm = pixelDistance * 0.026; // 1px ≈ 0.026 cm
-        const feet = cm / 30.48;
-        const feetInt = Math.floor(feet);
-        const inch = Math.round((feet - feetInt) * 12);
-
-        alert(`Measured: ${feetInt}' ${inch}"`);
-        addMeasuredValue(feetInt, inch);
-
-        // Reset
-        measurePoints = [];
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-      } else {
-        ctx.fillStyle = "red";
-        ctx.beginPath();
-        ctx.arc(e.clientX,e.clientY,6,0,Math.PI*2);
-        ctx.fill();
-      }
-    };
-
-  } catch (err) {
-    alert("Camera access failed: " + err.message);
-  }
-}
-
-/* ---------- Stop Camera ---------- */
-function stopCamera(){
-  const box = document.getElementById('camera-box');
-  box.style.display = 'none';
-  if(cameraStream){
-    cameraStream.getTracks().forEach(t => t.stop());
-    cameraStream = null;
-  }
-}
-
-/* ---------- Add Measured Value to Last Row ---------- */
-function addMeasuredValue(feet, inch){
-  const totalFeet = feet + (inch/12);
-  const parent = document.querySelector("#meas-items");
-  const last = parent.querySelector(".meas-row:last-child");
-  if(last){
-    last.querySelector(".meas-w").value = totalFeet.toFixed(2);
-    updateMeas(last);
-  } else {
-    addMeasurement({name:"Camera Measure", w: totalFeet.toFixed(2), h:0, unitType:"feet"});
-  }
-  stopCamera();
-}
-
-
-
-
-
-
-
-
 
 /* -------------------------------------------------------------
  * 5️⃣ ORDERS (Local Storage Implementation)
