@@ -2886,6 +2886,7 @@ function shareMeasurement(id) {
   }
 }
 
+
 /* -------------------------------------------------------------
  * 5️⃣ ORDERS (Local Storage Implementation)
  * ------------------------------------------------------------- */
@@ -2893,10 +2894,18 @@ function shareMeasurement(id) {
 let selectedOrderId = null;
 
 // ✅ प्रत्येक item-row मध्ये Category field जोडले
+// ✅ प्रत्येक item-row मध्ये Category field जोडले
 function addOrderRow(data = {}) {
   const parent = el('order-items');
   const row = document.createElement('div');
-  row.className = 'order-row grid grid-cols-7 gap-2 border-b py-2'; // वाढवलेले grid-cols 7
+  
+  // 💡 दुरुस्ती:
+  // Mobile (Default): 2 Columns (Qty/Rate एका ओळीत) किंवा 3 columns
+  // Desktop (lg:): 7 Columns
+  row.className = 'order-row grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 border-b py-2'; 
+                                                                                        // ↑ lg:grid-cols-7 Desktop साठी 
+                                                                                        // ↑ sm:grid-cols-3 (टॅब्लेटसाठी ३)
+                                                                                        // ↑ grid-cols-2 (Mobile साठी २)
 
   const part = data.part || '';
   const category = data.category || '';
@@ -2906,21 +2915,26 @@ function addOrderRow(data = {}) {
   const amount = (qty * rate).toFixed(2);
 
   row.innerHTML = `
-    <input list="materials" class="ord-part w-full p-2 border rounded col-span-2" placeholder="Particular" value="${part}">
-    <select class="ord-category p-2 border rounded col-span-1">
+    <input list="materials" class="ord-part w-full p-2 border rounded col-span-2 lg:col-span-2" placeholder="Particular" value="${part}">
+    
+    <select class="ord-category p-2 border rounded col-span-2 sm:col-span-1 lg:col-span-1">
       <option value="">Select Cat</option>
       ${(DATA.categories || []).map(c => 
         `<option value="${c}" ${c === category ? 'selected' : ''}>${c}</option>`
       ).join('')}
     </select>
-    <input type="number" class="ord-qty p-2 border rounded col-span-1" placeholder="Qty" value="${qty}">
-    <input class="ord-unit p-2 border rounded col-span-1" placeholder="Unit" value="${unit}">
-    <input type="number" class="ord-rate p-2 border rounded col-span-1" placeholder="Rate" value="${rate}">
-    <div class="flex items-center justify-between col-span-1">
-      <span class="ord-amt font-semibold text-right pr-2">${amount}</span>
-      <button class="smallbtn bg-red-500 text-white" onclick="this.closest('.order-row').remove()">✕</button>
+    
+    <input type="number" class="ord-qty p-2 border rounded col-span-1 lg:col-span-1" placeholder="Qty" value="${qty}">
+    <input class="ord-unit p-2 border rounded col-span-1 lg:col-span-1" placeholder="Unit" value="${unit}">
+    
+    <input type="number" class="ord-rate p-2 border rounded col-span-2 sm:col-span-1 lg:col-span-1" placeholder="Rate" value="${rate}">
+    
+    <div class="flex items-center justify-between col-span-2 sm:col-span-3 lg:col-span-1"> 
+        <span class="ord-amt font-semibold text-right pr-2">${amount}</span>
+        <button class="smallbtn bg-red-500 text-white" onclick="this.closest('.order-row').remove()">✕</button>
     </div>
   `;
+  // ... (बाकीचा calcAmount logic जसाच्या तसा ठेवा)
 
   const qtyInput = row.querySelector('.ord-qty');
   const rateInput = row.querySelector('.ord-rate');
@@ -2968,10 +2982,10 @@ function saveOrder() {
   if (!items.length) return alert("कमीत कमी एक item add करा.");
 
   let id = selectedOrderId;
-  if (!id || !id.startsWith('ORD-')) {
-    DATA.counters.ord = (DATA.counters.ord || 0) + 1;
-    id = "ORD-" + String(DATA.counters.ord).padStart(4, '0');
-  }
+  if (!id || !id.startsWith("ORD-")) {
+    id = getNextOrderId();
+}
+
 
   const rec = {
     id, date, client, work, status, invoiceId,
@@ -3061,19 +3075,10 @@ function loadOrder(id) {
   el('order-items').innerHTML = '';
   (rec.items || []).forEach(it => addOrderRow(it));
 }
-function deleteOrder(id) {
-    if (!confirm("Are you sure you want to delete Order " + id + "?")) return;
-    DATA.orders = DATA.orders.filter(o => o.id !== id);
-    // Also remove the orderId link from Paid Payments
-    DATA.paidPayments.forEach(pp => { if(pp.orderId === id) pp.orderId = 'N/A'; });
-    saveData();
-    alert(`Order ${id} deleted.`);
-}
 
 function shareOrder(orderId) {
-    // --- COMPANY INFO (navin add kele) ---
     const c = DATA.company || {};
-    const cname = c.name || "Vaibhav Enterprises"; // Company name dynamically get kela
+    const cname = c.name || "Vaibhav Enterprises";
     
     const r = DATA.orders.find(o => o.id === orderId);
     if (!r) { alert("Record not found for sharing"); return; }
@@ -3081,32 +3086,46 @@ function shareOrder(orderId) {
     const lines = [];
     lines.push('📦 Order Details');
     lines.push('');
-    // ✅ Company name 'cname' vaparla (ani bold formatting rakhe ahe)
-    lines.push('*' + cname + '*'); 
+    lines.push('*' + cname + '*');
     lines.push('');
     lines.push('Order ID: ' + r.id);
-  //lines.push('Invoice No: ' + (r.invoiceId || 'N/A'));
-  //lines.push('Client Name: ' + r.client);
-  //lines.push('Work Title: ' + r.work);
     lines.push('Order Date: ' + new Date(r.date).toLocaleDateString());
     lines.push('Order Status: *' + r.status + '*');
-    lines.push('Payment Status: *' + r.paymentStatus + '*');
+
+    // 🔥 जर Status = "order" असेल → Payment Status ची ओळ टाकू नका
+    const hideDetails = (r.status?.toLowerCase() === "order");
+
+    if (!hideDetails) {
+        lines.push('Payment Status: *' + r.paymentStatus + '*');
+    }
+
+    // merchant लाइन कायम ठेवायची
     lines.push('Merchant: ' + (r.merchantName || 'N/A') + ' (' + (r.merchantContact || 'N/A') + ')');
     lines.push('');
     lines.push('Items:');
-    
+
+    // 🔥 "order" status → Rate आणि Amount नको
     (r.items || []).forEach(it => {
-        lines.push(`• ${it.part} | Qty: ${it.qty} ${it.unit} | Rate: ₹${it.rate} | Amt: ₹${it.amount}`);
+        if (hideDetails) {
+            lines.push(`• ${it.part} | Qty: ${it.qty} ${it.unit}`);
+        } else {
+            lines.push(`• ${it.part} | Qty: ${it.qty} ${it.unit} | Rate: ₹${it.rate} | Amt: ₹${it.amount}`);
+        }
     });
-    
-    const totalAmount = r.items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+
+    // 🔥 Total amount फक्त Status ≠ "order" असताना
+    if (!hideDetails) {
+        const totalAmount = r.items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        lines.push('');
+        lines.push('*Order Total: ₹' + totalAmount.toFixed(2) + '*');
+    }
+
     lines.push('');
-    lines.push('*Order Total: ₹' + totalAmount.toFixed(2) + '*');
-    lines.push('');
-    lines.push('_Thank you ! / Regards, ' + cname + '_'); // 'Thank you' madhye pan Company name add kela (optional)
+    lines.push('_Thank you ! / Regards, ' + cname + '_');
 
     window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
 }
+
 
 
 function syncReceivedOrdersToExpensesCombined() {
@@ -3181,18 +3200,19 @@ function syncReceivedOrdersToExpensesCombined() {
       } else {
         // ➕ नवीन Expense तयार करा
         DATA.expenses.push({
-          id: 'EXP-' + String(++DATA.counters.exp).padStart(6, '0'),
-          invoiceNo,
-          date: newData.date,
-          // ✅ सर्व आयटमच्या category एकत्र
-          category: newData.items.map(i => i.category || newData.category).join(', '),
-          name: newData.items.map(i => i.name).join(', '),
-          quantity: newData.items.map(i => i.qty).join(', '),
-          unit: newData.items.map(i => i.unit).join(', '),
-          rate: newData.items.map(i => i.rate).join(', '),
-          amount: totalAmt.toFixed(2),
-          source: 'order'
-        });
+    id: 'EXP-' + String(++DATA.counters.exp).padStart(6, '0'),
+    invoiceNo,
+    date: newData.date,
+    category: newData.items.map(i => i.category).join(', '),
+    name: newData.items.map(i => i.name).join(', '),
+    quantity: newData.items.map(i => i.qty).join(', '),
+    unit: newData.items.map(i => i.unit).join(', '),
+    rate: newData.items.map(i => i.rate).join(', '),
+    amount: totalAmt.toFixed(2),
+    source: "order",
+    orderId: order.id  // 👈 MOST IMPORTANT
+});
+
       }
     }
 
@@ -3219,18 +3239,19 @@ function deleteOrder(id) {
 
   if (!confirm(`Are you sure you want to delete Order ${id}?`)) return;
 
+  // 1) Remove order
   DATA.orders = DATA.orders.filter(o => o.id !== id);
 
-  // ✅ Delete related Expenses by invoiceId
-  if (ord.invoiceId) {
-    DATA.expenses = DATA.expenses.filter(e => e.invoiceNo !== ord.invoiceId);
-  }
+  // 2) Remove ONLY expenses created by THIS ORDER
+  DATA.expenses = DATA.expenses.filter(e => e.orderId !== id);
 
   saveData();
-  alert("Order and related Expenses deleted.");
-  renderOrdersList(); // If available
-  renderExpensesList();
+  alert(`Order ${id} and related Expenses deleted.`);
+  
+  renderOrdersList?.();
+  renderExpensesList?.();
 }
+
 
 
 
@@ -3287,6 +3308,18 @@ function renderMaterialsDropdown() {
     datalist.appendChild(opt);
   });
 }
+
+
+function getNextOrderId() {
+  let used = DATA.orders.map(o => Number(o.id.replace("ORD-", "")));
+
+  let n = 1;
+  while (used.includes(n)) n++;
+
+  return "ORD-" + String(n).padStart(4, "0");
+}
+
+
 
 
 /* -------------------------------------------------------------
