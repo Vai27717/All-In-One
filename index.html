@@ -4050,9 +4050,22 @@ const rec = {
 function renderOrders() {
     const box = el('saved-orders');
     if (!box) return;
+
     box.innerHTML = '';
+
+    // ✅ NEW ADD (Invoice filter)
+    const selectedInvoice = el('order-invoice-select')?.value || '';
+
+    if (!selectedInvoice) {
+        box.innerHTML = '';
+        return;   // invoice select नसेल तर काहीही दाखवू नका
+    }
     
-    (DATA.orders || []).sort((a, b) => b.id.localeCompare(a.id)).forEach(r => {
+    (DATA.orders || [])
+.filter(o => o.invoiceId === selectedInvoice)
+.sort((a, b) => b.id.localeCompare(a.id))
+.forEach(r => {
+
         const div = document.createElement('div');
         div.className = "p-2 border rounded bg-gray-700 mb-1 text-sm";
         const totalAmount = r.items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
@@ -4531,6 +4544,10 @@ el('exp-filter-date').addEventListener('change', () => {
 });
 
 
+el('order-invoice-select').addEventListener('change', () => {
+    renderOrders();
+});
+
 
 /* -------------------------------------------------------------
  * 6️⃣ PAYMENTS (Received Payments) (Local Storage Implementation)
@@ -4568,6 +4585,7 @@ function handleInvoiceSelectInPayment(invNo) {
     } else {
         addPaymentRowForm(); // Add one empty row if none exist
     }
+   renderPaymentsList();
 }
 
 
@@ -4634,10 +4652,21 @@ function savePayments() {
 function renderPaymentsList() {
     const box = el('saved-payments');
     if (!box) return;
+
     box.innerHTML = '';
+
+    // ✅ NEW ADD (Invoice filter)
+    const selectedInvoice = el('pay-invno')?.value || '';
+
+    if (!selectedInvoice) {
+        return;   // Invoice select नसेल तर काहीही दाखवू नका
+    }
     
     // Group payments by Invoice No (which serves as the group ID)
-    const groups = DATA.payments.reduce((acc, p) => {
+    const groups = DATA.payments
+.filter(p => p.invoiceNo === selectedInvoice)
+.reduce((acc, p) => {
+
         const id = p.invoiceNo || 'N/A';
         if (!acc[id]) acc[id] = [];
         acc[id].push(p);
@@ -4819,10 +4848,30 @@ function addPaidRow(data = {}) {
 }
 
 function handleInvoiceSelectInPaid(invNo) {
+
     const inv = DATA.invoices.find(i => i.id === invNo);
     el('pp-client').value = inv?.client || '';
     el('pp-work').value = inv?.work || '';
+
+    // ✅ NEW ADD — Order ID dropdown filter
+    const orderSelect = el('pp-order-id');
+    orderSelect.innerHTML = '<option value="">-- Select Order ID --</option>';
+
+    if (!invNo) return;
+
+    (DATA.orders || [])
+      .filter(o => o.invoiceId === invNo)
+      .forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.id;
+          opt.textContent = o.id;
+          orderSelect.appendChild(opt);
+      });
+
+    // ✅ Saved Payments re-render करा
+    renderPaidPayments();
 }
+
 
 function savePaidPayment() {
     const invNo = el('pp-invno').value.trim();
@@ -4902,10 +4951,21 @@ function savePaidPayment() {
 function renderPaidPayments() {
     const box = el('saved-paid');
     if (!box) return;
+
     box.innerHTML = '';
+
+    // ✅ NEW ADD (Invoice filter)
+    const selectedInvoice = el('pp-invno')?.value || '';
+
+    if (!selectedInvoice) {
+        return;   // invoice select नसेल तर काहीही दाखवू नका
+    }
     
     // Group payments by a composite key (InvoiceNo_OrderId)
-    const groups = DATA.paidPayments.reduce((acc, pp) => {
+    const groups = DATA.paidPayments
+.filter(pp => pp.invoiceNo === selectedInvoice)
+.reduce((acc, pp) => {
+
         let key;
         
         // 💡 दुरुस्ती: मॅन्युअल एंट्रीसाठी (Order ID नसेल तेव्हा) Name आणि Labor चा वापर Key मध्ये करा.
